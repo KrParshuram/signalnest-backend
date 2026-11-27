@@ -63,6 +63,49 @@ const updateSchema = z.object({
   message: "At least one editable field must be provided.",
 });
 
+router.post("/import/url", async (req, res) => {
+  const input = z.object({
+    organizationId: z.string().uuid(),
+    brandId: z.string().uuid(),
+    url: z.string().url().max(2048),
+    originalContent: z.string().trim().min(1).max(20_000),
+    authorDisplayName: z.string().trim().max(160).optional(),
+    publishedAt: z.string().datetime().optional(),
+  }).strict().parse(req.body);
+  const parsedUrl = new URL(input.url);
+  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+    throw new HttpError(400, "INVALID_SOURCE_URL", "Only HTTP and HTTPS source URLs are supported.");
+  }
+  const membership = await getMembership(req.userId!, input.organizationId);
+  if (!membership) throw new HttpError(404, "ORGANIZATION_NOT_FOUND", "Organization not found.");
+  if (!permissions.manageInsights(membership.role)) throw new HttpError(403, "FORBIDDEN", "Only owners, admins and managers can capture a URL.");
+  const brand = await prisma.brand.findFirst({ where: { id: input.brandId, organizationId: input.organizationId }, select: { id: true } });
+  if (!brand) throw new HttpError(404, "BRAND_NOT_FOUND", "Brand not found.");
+
+  const previewData = [{
+    originalContent: input.originalContent,
+    sourceUrl: input.url,
+    ...(input.authorDisplayName ? { authorDisplayName: input.authorDisplayName } : {}),
+    ...(input.publishedAt ? { publishedAt: input.publishedAt } : {}),
+  }];
+  const importJob = await prisma.feedbackImportJob.create({
+    data: {
+      organizationId: input.organizationId,
+      brandId: input.brandId,
+      createdByUserId: req.userId!,
+      type: "URL",
+      status: "PREVIEWED",
+      fileName: parsedUrl.hostname,
+      totalRows: 1,
+      validRows: 1,
+      invalidRows: 0,
+      previewData: previewData as unknown as Prisma.InputJsonValue,
+      errors: [],
+    },
+    select: { id: true, status: true, fileName: true, totalRows: true, validRows: true, invalidRows: true, createdAt: true },
+  });
+  return res.status(201).json({ ...importJob, preview: previewData });
+});
 router.post("/import/csv", upload.single("file"), async (req, res) => {
   const input = z.object({ organizationId: z.string().uuid(), brandId: z.string().uuid() }).strict().parse(req.body);
   const membership = await getMembership(req.userId!, input.organizationId);
