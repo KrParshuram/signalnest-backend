@@ -21,7 +21,7 @@ function slugify(value: string) {
 
 router.get("/", async (req, res) => {
   const memberships = await prisma.organizationMember.findMany({
-    where: { userId: req.userId, status: "ACTIVE" },
+    where: { userId: req.userId!, status: "ACTIVE" },
     select: {
       role: true, status: true,
       organization: { include: { _count: { select: { members: true, brands: true } } } },
@@ -48,7 +48,7 @@ router.post("/", async (req, res) => {
 
 router.get("/:organizationId", async (req, res) => {
   const membership = await prisma.organizationMember.findFirst({
-    where: { userId: req.userId, organizationId: req.params.organizationId, status: "ACTIVE" },
+    where: { userId: req.userId!, organizationId: req.params.organizationId, status: "ACTIVE" },
     select: { role: true, organization: true },
   });
   if (!membership) throw new HttpError(404, "ORGANIZATION_NOT_FOUND", "Organization not found.");
