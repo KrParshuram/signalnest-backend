@@ -1,0 +1,29 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://signalnest:signalnest@localhost:5432/signalnest
+      - name: Typecheck and build
+        run: npm run build
+        env:
+          DATABASE_URL: postgresql://signalnest:signalnest@localhost:5432/signalnest
+          REDIS_URL: redis://localhost:6379
+          JWT_ACCESS_SECRET: ci-access-secret-which-is-longer-than-32-characters
+          JWT_REFRESH_SECRET: ci-refresh-secret-which-is-also-longer-than-32
