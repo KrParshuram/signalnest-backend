@@ -90,6 +90,20 @@ test("identity, workspace membership and brand isolation", async () => {
   assert.equal(brand.status, 201);
   const brandId = brand.body.id;
 
+
+  const urlPreview = await firstAgent.post("/api/v1/feedback/import/url")
+    .set("Authorization", `Bearer ${accessToken}`)
+    .send({ organizationId, brandId, url: "https://reviews.example.test/customer-123", originalContent: "The onboarding was clear and quick.", authorDisplayName: "URL Customer" });
+  assert.equal(urlPreview.status, 201);
+  assert.equal(urlPreview.body.preview[0].sourceUrl, "https://reviews.example.test/customer-123");
+  assert.equal(urlPreview.body.preview[0].originalContent, "The onboarding was clear and quick.");
+  const urlJobStatus = await firstAgent.get("/api/v1/feedback/import/" + urlPreview.body.id)
+    .set("Authorization", `Bearer ${accessToken}`);
+  assert.equal(urlJobStatus.body.status, "PREVIEWED");
+  const unsafeUrl = await firstAgent.post("/api/v1/feedback/import/url")
+    .set("Authorization", `Bearer ${accessToken}`)
+    .send({ organizationId, brandId, url: "ftp://reviews.example.test/file", originalContent: "Unsupported protocol" });
+  assert.equal(unsafeUrl.status, 400);
   const csvPreview = await firstAgent.post("/api/v1/feedback/import/csv")
     .set("Authorization", `Bearer ${accessToken}`)
     .field("organizationId", organizationId)
