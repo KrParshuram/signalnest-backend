@@ -208,7 +208,7 @@ router.patch("/:feedbackId", async (req, res) => {
 
 router.post("/:feedbackId/archive", async (req, res) => {
   const { feedback, membership } = await getFeedbackAccess(req.userId!, req.params.feedbackId);
-  if (!permissions.manageFeedback(membership.role)) {
+  if (!permissions.manageFeedback(membership.role, feedback.assignedToUserId, req.userId!)) {
     throw new HttpError(403, "FORBIDDEN", "You do not have permission to archive feedback.");
   }
   const updated = await prisma.feedback.update({
@@ -221,7 +221,7 @@ router.post("/:feedbackId/archive", async (req, res) => {
 
 router.post("/:feedbackId/restore", async (req, res) => {
   const { feedback, membership } = await getFeedbackAccess(req.userId!, req.params.feedbackId);
-  if (!permissions.manageFeedback(membership.role)) {
+  if (!permissions.manageFeedback(membership.role, feedback.assignedToUserId, req.userId!)) {
     throw new HttpError(403, "FORBIDDEN", "You do not have permission to restore feedback.");
   }
   const updated = await prisma.feedback.update({
@@ -244,7 +244,7 @@ router.get("/:feedbackId/notes", async (req, res) => {
 
 router.post("/:feedbackId/notes", async (req, res) => {
   const { feedback, membership } = await getFeedbackAccess(req.userId!, req.params.feedbackId);
-  if (!permissions.manageFeedback(membership.role)) {
+  if (!permissions.manageFeedback(membership.role, feedback.assignedToUserId, req.userId!)) {
     throw new HttpError(403, "FORBIDDEN", "You do not have permission to add feedback notes.");
   }
   const input = z.object({ body: z.string().trim().min(1).max(5_000) }).strict().parse(req.body);
