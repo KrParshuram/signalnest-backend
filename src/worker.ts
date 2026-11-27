@@ -45,7 +45,15 @@ const worker = new Worker<{ importJobId: string }>("feedback-imports", async (jo
       : [];
 
     let processedRows = 0;
-    for (const row of rows) {
+    for (const [rowIndex, row] of rows.entries()) {
+      const existingRow = await prisma.feedback.findFirst({
+        where: { importJobId: importJob.id, importRowNumber: rowIndex + 1 },
+        select: { id: true },
+      });
+      if (existingRow) {
+        processedRows += 1;
+        continue;
+      }
       const normalized = row.originalContent.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
       const contentHash = createHash("sha256").update(normalized).digest("hex");
 
@@ -77,6 +85,7 @@ const worker = new Worker<{ importJobId: string }>("feedback-imports", async (jo
           sourceId: source.id,
           createdByUserId: importJob.createdByUserId,
           importJobId: importJob.id,
+          importRowNumber: rowIndex + 1,
           externalId: row.externalId || null,
           contentHash,
           duplicateOfId: duplicate?.id ?? null,
