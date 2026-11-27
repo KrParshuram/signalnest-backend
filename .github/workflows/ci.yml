@@ -9,6 +9,26 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: signalnest
+          POSTGRES_PASSWORD: signalnest_dev
+          POSTGRES_DB: signalnest
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U signalnest -d signalnest"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://signalnest:signalnest_dev@localhost:5432/signalnest
+      REDIS_URL: redis://localhost:6379
+      JWT_ACCESS_SECRET: ci-access-secret-which-is-longer-than-32-characters
+      JWT_REFRESH_SECRET: ci-refresh-secret-which-is-also-longer-than-32
+      NODE_ENV: test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -17,12 +37,9 @@ jobs:
       - run: npm install
       - name: Generate Prisma client
         run: npx prisma generate
-        env:
-          DATABASE_URL: postgresql://signalnest:signalnest@localhost:5432/signalnest
+      - name: Validate schema against PostgreSQL
+        run: npx prisma db push
       - name: Typecheck and build
         run: npm run build
-        env:
-          DATABASE_URL: postgresql://signalnest:signalnest@localhost:5432/signalnest
-          REDIS_URL: redis://localhost:6379
-          JWT_ACCESS_SECRET: ci-access-secret-which-is-longer-than-32-characters
-          JWT_REFRESH_SECRET: ci-refresh-secret-which-is-also-longer-than-32
+      - name: Run integration tests
+        run: npm test
