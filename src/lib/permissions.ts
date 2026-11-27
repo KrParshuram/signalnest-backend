@@ -7,6 +7,9 @@ export const permissions = {
   manageIntegrations: (role: OrganizationRole) => role === "OWNER" || role === "ADMIN",
   manageInsights: (role: OrganizationRole) => role === "OWNER" || role === "ADMIN" || role === "MANAGER",
   manageActions: (role: OrganizationRole) => role === "OWNER" || role === "ADMIN" || role === "MANAGER",
-  manageFeedback: (role: OrganizationRole) => role !== "VIEWER",
+  createFeedback: (role: OrganizationRole) => role !== "VIEWER",
+  manageFeedback: (role: OrganizationRole, assignedToUserId: string | null, userId: string) =>
+    role === "OWNER" || role === "ADMIN" || role === "MANAGER" ||
+    (role === "MEMBER" && assignedToUserId === userId),
   read: (_role: OrganizationRole) => true,
 } as const;
