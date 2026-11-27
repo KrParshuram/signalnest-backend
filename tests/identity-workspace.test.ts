@@ -131,6 +131,9 @@ test("identity, workspace membership and brand isolation", async () => {
   const csvImportedRows = await prisma.feedback.findMany({ where: { importJobId: csvPreview.body.id } });
   assert.equal(csvImportedRows.length, 1);
   assert.equal(csvImportedRows[0].originalContent, "CSV imported feedback");
+  await processFeedbackImport(csvPreview.body.id);
+  const csvRowsAfterRetry = await prisma.feedback.count({ where: { importJobId: csvPreview.body.id } });
+  assert.equal(csvRowsAfterRetry, 1);
   const feedbackCreate = await firstAgent.post("/api/v1/feedback")
     .set("Authorization", `Bearer ${accessToken}`)
     .send({ organizationId, brandId, originalContent: "The product is easy to use and the support team was helpful.", authorDisplayName: "Customer A", topicIds: [customTopic.body.id] });
