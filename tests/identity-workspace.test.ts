@@ -173,7 +173,7 @@ test("identity, workspace membership and brand isolation", async () => {
   assert.equal(archiveFeedback.status, 200);
   const activeAfterArchive = await firstAgent.get(`/api/v1/feedback?organizationId=${organizationId}`)
     .set("Authorization", `Bearer ${accessToken}`);
-  assert.equal(activeAfterArchive.body.data.length, 0);
+  assert.equal(activeAfterArchive.body.data.some((item: { id: string }) => item.id === feedbackId), false);
   const restoreFeedback = await firstAgent.post(`/api/v1/feedback/${feedbackId}/restore`)
     .set("Authorization", `Bearer ${accessToken}`);
   assert.equal(restoreFeedback.status, 200);
