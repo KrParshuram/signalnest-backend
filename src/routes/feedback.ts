@@ -237,6 +237,8 @@ router.get("/", async (req, res) => {
     status: z.enum(["ACTIVE", "ARCHIVED"]).default("ACTIVE"),
     fromDate: z.string().datetime().optional(),
     toDate: z.string().datetime().optional(),
+    sortBy: z.enum(["createdAt", "publishedAt"]).default("createdAt"),
+    sortOrder: z.enum(["asc", "desc"]).default("desc"),
     search: z.string().trim().max(200).optional(),
     cursor: z.string().uuid().optional(),
     limit: z.coerce.number().int().min(1).max(100).default(25),
@@ -266,7 +268,9 @@ router.get("/", async (req, res) => {
   const rows = await prisma.feedback.findMany({
     where,
     include: feedbackInclude,
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    orderBy: query.sortBy === "publishedAt"
+      ? [{ publishedAt: query.sortOrder }, { id: query.sortOrder }]
+      : [{ createdAt: query.sortOrder }, { id: query.sortOrder }],
     take: query.limit + 1,
     ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
   });
