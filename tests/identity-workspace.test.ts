@@ -73,6 +73,16 @@ test("identity, workspace membership and brand isolation", async () => {
   organizationId = organization.body.id;
   assert.equal(organization.body.brands.length, 1);
   assert.equal(organization.body.brands[0].name, "Initial Brand");
+  const defaultTopics = await firstAgent.get("/api/v1/topics?organizationId=" + organizationId)
+    .set("Authorization", `Bearer ${accessToken}`);
+  assert.equal(defaultTopics.status, 200);
+  assert.equal(defaultTopics.body.length, 12);
+  assert.ok(defaultTopics.body.some((topic: { name: string }) => topic.name === "Product quality"));
+
+  const customTopic = await firstAgent.post("/api/v1/topics")
+    .set("Authorization", `Bearer ${accessToken}`)
+    .send({ organizationId, name: "Checkout experience" });
+  assert.equal(customTopic.status, 201);
 
   const brand = await firstAgent.post("/api/v1/brands")
     .set("Authorization", `Bearer ${accessToken}`)
@@ -81,7 +91,7 @@ test("identity, workspace membership and brand isolation", async () => {
   const brandId = brand.body.id;
   const feedbackCreate = await firstAgent.post("/api/v1/feedback")
     .set("Authorization", `Bearer ${accessToken}`)
-    .send({ organizationId, brandId, originalContent: "The product is easy to use and the support team was helpful.", authorDisplayName: "Customer A" });
+    .send({ organizationId, brandId, originalContent: "The product is easy to use and the support team was helpful.", authorDisplayName: "Customer A", topicIds: [customTopic.body.id] });
   assert.equal(feedbackCreate.status, 201);
   const feedbackId = feedbackCreate.body.id;
   assert.equal(feedbackCreate.body.source.type, "MANUAL");
@@ -92,6 +102,9 @@ test("identity, workspace membership and brand isolation", async () => {
   assert.equal(feedbackList.status, 200);
   assert.equal(feedbackList.body.data.length, 1);
   assert.equal(feedbackList.body.data[0].id, feedbackId);
+  const topicFiltered = await firstAgent.get("/api/v1/feedback?organizationId=" + organizationId + "&topicId=" + customTopic.body.id)
+    .set("Authorization", `Bearer ${accessToken}`);
+  assert.equal(topicFiltered.body.data.length, 1);
 
   const immutableContent = await firstAgent.patch(`/api/v1/feedback/${feedbackId}`)
     .set("Authorization", `Bearer ${accessToken}`)
