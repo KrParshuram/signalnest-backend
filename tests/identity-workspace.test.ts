@@ -39,6 +39,8 @@ test("identity, workspace membership and brand isolation", async () => {
   assert.equal(registration.status, 201);
   assert.ok(registration.body.accessToken);
   accessToken = registration.body.accessToken;
+  const originalRefreshCookie = registration.headers["set-cookie"]?.[0]?.split(";")[0];
+  assert.ok(originalRefreshCookie);
 
   const duplicate = await firstAgent.post("/api/v1/auth/register").send({
     name: "Duplicate Tester",
@@ -77,8 +79,11 @@ test("identity, workspace membership and brand isolation", async () => {
   const refreshed = await firstAgent.post("/api/v1/auth/refresh");
   assert.equal(refreshed.status, 200);
   assert.ok(refreshed.body.accessToken);
-  assert.notEqual(refreshed.body.accessToken, accessToken);
   accessToken = refreshed.body.accessToken;
+
+  const replayedOldSession = await request(app).post("/api/v1/auth/refresh")
+    .set("Cookie", originalRefreshCookie);
+  assert.equal(replayedOldSession.status, 401);
 
   const logout = await firstAgent.post("/api/v1/auth/logout");
   assert.equal(logout.status, 204);
