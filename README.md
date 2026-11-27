@@ -19,6 +19,7 @@ Requirements: Node.js 22+, npm, Docker Desktop.
 4. Install dependencies: `npm install`.
 5. Generate Prisma client and sync the development database: `npx prisma db push`.
 6. Start the API: `npm run dev`.
+7. In a second terminal, start the background worker: `npm run worker` (after `npm run build`).
 
 The API listens on `http://localhost:4000`. Liveness: `GET /health`. Database readiness: `GET /ready`. Versioned endpoints use `/api/v1`.
 
@@ -32,11 +33,12 @@ The API listens on `http://localhost:4000`. Liveness: `GET /health`. Database re
 - Organization-scoped topic CRUD and default feedback categories.
 - Manual feedback create/read/update/archive/restore, source attribution and immutable original content.
 - Search, brand/source/sentiment/topic/status filters and cursor pagination.
+- CSV upload preview, row-level validation, explicit confirmation, BullMQ processing, retry-safe row identity and duplicate linking.
 - Private feedback notes and organization-scoped access checks.
 - Member inbox restriction to assigned feedback; owner/admin-only permanent deletion.
 
 ## Not implemented yet
 
-CSV import, URL fetching, duplicate detection, background processing, AI classification, insights, actions, testimonials, widgets and external integrations remain on the task ledger.
+URL capture, AI classification, insights, actions, testimonials, widgets and external integrations remain on the task ledger.
 
 See [Architecture](docs/architecture.md), [API contract](docs/api-contract.md), and [Task ledger](docs/task-ledger.md).
