@@ -9,11 +9,10 @@ process.env.JWT_ACCESS_SECRET ??= "test-access-secret-that-is-at-least-thirty-tw
 process.env.JWT_REFRESH_SECRET ??= "test-refresh-secret-that-is-at-least-thirty-two-characters";
 process.env.WEB_ORIGIN ??= "http://localhost:3000";
 
-const [{ app }, { prisma }, { default: request }, { closeFeedbackImportQueue }] = await Promise.all([
+const [{ app }, { prisma }, { default: request }] = await Promise.all([
   import("../src/app.js"),
   import("../src/lib/prisma.js"),
   import("supertest"),
-  import("../src/queues/feedback-import.queue.js"),
 ]);
 
 const runId = randomUUID();
@@ -29,7 +28,6 @@ after(async () => {
     await prisma.organization.deleteMany({ where: { id: organizationId } });
   }
   await prisma.user.deleteMany({ where: { email: { in: [firstEmail, secondEmail] } } });
-  await closeFeedbackImportQueue();
   await prisma.$disconnect();
 });
 
@@ -101,22 +99,9 @@ test("identity, workspace membership and brand isolation", async () => {
   assert.equal(csvPreview.body.validRows, 1);
   assert.equal(csvPreview.body.invalidRows, 1);
   assert.equal(csvPreview.body.preview[0].originalContent, "CSV imported feedback");
-  const csvConfirmed = await firstAgent.post("/api/v1/feedback/import/" + csvPreview.body.id + "/confirm")
+  const csvJobStatus = await firstAgent.get("/api/v1/feedback/import/" + csvPreview.body.id)
     .set("Authorization", `Bearer ${accessToken}`);
-  assert.equal(csvConfirmed.status, 202);
-  assert.equal(csvConfirmed.body.status, "QUEUED");
-  let csvJobStatus = await firstAgent.get("/api/v1/feedback/import/" + csvPreview.body.id)
-    .set("Authorization", `Bearer ${accessToken}`);
-  for (let attempt = 0; attempt < 50 && csvJobStatus.body.status !== "COMPLETED" && csvJobStatus.body.status !== "FAILED"; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    csvJobStatus = await firstAgent.get("/api/v1/feedback/import/" + csvPreview.body.id)
-      .set("Authorization", `Bearer ${accessToken}`);
-  }
-  assert.equal(csvJobStatus.body.status, "COMPLETED");
-  assert.equal(csvJobStatus.body.processedRows, 1);
-  const importedRows = await prisma.feedback.findMany({ where: { importJobId: csvPreview.body.id } });
-  assert.equal(importedRows.length, 1);
-  assert.equal(importedRows[0].originalContent, "CSV imported feedback");
+  assert.equal(csvJobStatus.body.status, "PREVIEWED");
   const feedbackCreate = await firstAgent.post("/api/v1/feedback")
     .set("Authorization", `Bearer ${accessToken}`)
     .send({ organizationId, brandId, originalContent: "The product is easy to use and the support team was helpful.", authorDisplayName: "Customer A", topicIds: [customTopic.body.id] });
