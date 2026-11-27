@@ -12,6 +12,7 @@ import authRoutes from "./routes/auth.js";
 import organizationRoutes from "./routes/organizations.js";
 import brandRoutes from "./routes/brands.js";
 import feedbackRoutes from "./routes/feedback.js";
+import topicRoutes from "./routes/topics.js";
 
 export const app = express();
 
@@ -53,6 +54,7 @@ app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/organizations", organizationRoutes);
 app.use("/api/v1/brands", brandRoutes);
 app.use("/api/v1/feedback", feedbackRoutes);
+app.use("/api/v1/topics", topicRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
