@@ -123,6 +123,13 @@ test("identity, workspace membership and brand isolation", async () => {
   const feedbackId = feedbackCreate.body.id;
   assert.equal(feedbackCreate.body.source.type, "MANUAL");
   assert.equal(feedbackCreate.body.sentiment, "UNKNOWN");
+  const sourcesList = await firstAgent.get("/api/v1/sources?organizationId=" + organizationId)
+    .set("Authorization", `Bearer ${accessToken}`);
+  assert.equal(sourcesList.status, 200);
+  assert.ok(sourcesList.body.some((source: { type: string }) => source.type === "MANUAL"));
+  const sourceFilteredFeedback = await firstAgent.get("/api/v1/feedback?organizationId=" + organizationId + "&sourceId=" + feedbackCreate.body.source.id)
+    .set("Authorization", `Bearer ${accessToken}`);
+  assert.equal(sourceFilteredFeedback.body.data.length, 1);
 
   const feedbackList = await firstAgent.get(`/api/v1/feedback?organizationId=${organizationId}&search=easy`)
     .set("Authorization", `Bearer ${accessToken}`);
