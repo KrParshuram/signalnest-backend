@@ -67,9 +67,11 @@ test("identity, workspace membership and brand isolation", async () => {
 
   const organization = await firstAgent.post("/api/v1/organizations")
     .set("Authorization", `Bearer ${accessToken}`)
-    .send({ name: "Test Workspace" });
+    .send({ name: "Test Workspace", initialBrand: { name: "Initial Brand", industry: "SaaS" } });
   assert.equal(organization.status, 201);
   organizationId = organization.body.id;
+  assert.equal(organization.body.brands.length, 1);
+  assert.equal(organization.body.brands[0].name, "Initial Brand");
 
   const brand = await firstAgent.post("/api/v1/brands")
     .set("Authorization", `Bearer ${accessToken}`)
