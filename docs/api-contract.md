@@ -36,7 +36,10 @@ The access token authenticates API requests. The refresh token is held in an Htt
 - `GET /feedback`
 - `POST /feedback`
 - `GET /feedback/:feedbackId`
-- `PATCH /feedback/:feedbackId`
+- `PATCH /feedback/:feedbackId` (source metadata and assignment only; original content is immutable)
+- `GET /feedback/:feedbackId/notes`
+- `POST /feedback/:feedbackId/notes`
+- `POST /feedback/:feedbackId/restore`
 - `DELETE /feedback/:feedbackId`
 - `POST /feedback/import/csv`
 - `POST /feedback/import/url`
@@ -64,3 +67,11 @@ The public widget endpoint must filter to approved, published testimonials and e
 Errors use `{ "error": { "code": "VALIDATION_ERROR", "message": "Human-readable message", "details": [] } }`.
 
 Cursor-based list responses use `{ "data": [], "page": { "nextCursor": null, "hasMore": false } }`. Exact schemas will be committed with their endpoint implementation.
+
+## Feedback integrity rules
+
+- Original content is immutable after creation.
+- Source attribution and import/publication timestamps are retained.
+- List responses are cursor-paginated and organization-scoped.
+- Archive and restore are reversible status changes; they do not rewrite original feedback.
+- Internal notes are private organization data and are never exposed through public testimonial/widget endpoints.
