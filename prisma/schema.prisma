@@ -21,15 +21,51 @@ enum MemberStatus {
   SUSPENDED
 }
 
+enum SourceType {
+  MANUAL
+  CSV
+  URL
+  WEBSITE_FORM
+  GOOGLE_BUSINESS_PROFILE
+  SHOPIFY
+  INTERCOM
+  ZENDESK
+  REDDIT
+  X
+  INSTAGRAM
+  WHATSAPP
+  OTHER
+}
+
+enum FeedbackSentiment {
+  POSITIVE
+  NEGATIVE
+  NEUTRAL
+  UNKNOWN
+}
+
+enum FeedbackStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum TopicAssignmentOrigin {
+  AI
+  HUMAN
+}
+
 model User {
-  id            String               @id @default(uuid())
-  name          String
-  email         String               @unique
-  passwordHash  String
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
-  memberships   OrganizationMember[]
-  refreshTokens RefreshToken[]
+  id               String               @id @default(uuid())
+  name             String
+  email            String               @unique
+  passwordHash     String
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  memberships      OrganizationMember[]
+  refreshTokens    RefreshToken[]
+  createdFeedback  Feedback[]           @relation("FeedbackCreator")
+  assignedFeedback Feedback[]           @relation("FeedbackAssignee")
+  feedbackNotes    FeedbackNote[]
 }
 
 model RefreshToken {
@@ -55,6 +91,10 @@ model Organization {
   updatedAt       DateTime             @updatedAt
   members         OrganizationMember[]
   brands          Brand[]
+  sources         Source[]
+  feedback        Feedback[]
+  topics          Topic[]
+  feedbackNotes   FeedbackNote[]
 
   @@index([createdAt])
 }
@@ -84,6 +124,108 @@ model Brand {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  feedback       Feedback[]
 
   @@index([organizationId, createdAt])
+}
+
+model Source {
+  id             String       @id @default(uuid())
+  organizationId String
+  name           String
+  type           SourceType
+  externalKey    String?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  feedback       Feedback[]
+
+  @@unique([organizationId, type, name])
+  @@index([organizationId, type, isActive])
+}
+
+model Feedback {
+  id                 String             @id @default(uuid())
+  organizationId     String
+  brandId            String
+  sourceId           String
+  createdByUserId    String
+  assignedToUserId   String?
+  duplicateOfId      String?
+  externalId         String?
+  originalContent    String             @db.Text
+  authorDisplayName  String?
+  sourceUrl          String?
+  publishedAt        DateTime?
+  importedAt         DateTime           @default(now())
+  sentiment          FeedbackSentiment  @default(UNKNOWN)
+  status             FeedbackStatus     @default(ACTIVE)
+  summary            String?            @db.Text
+  metadata           Json?
+  archivedAt         DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  brand              Brand              @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  source             Source             @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  createdBy          User               @relation("FeedbackCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  assignedTo         User?              @relation("FeedbackAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  duplicateOf        Feedback?          @relation("FeedbackDuplicates", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  duplicates         Feedback[]         @relation("FeedbackDuplicates")
+  topicAssignments   FeedbackTopicAssignment[]
+  notes              FeedbackNote[]
+
+  @@unique([organizationId, sourceId, externalId])
+  @@index([organizationId, brandId, createdAt])
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, sentiment, createdAt])
+  @@index([organizationId, sourceId, createdAt])
+  @@index([organizationId, publishedAt])
+  @@index([assignedToUserId, status])
+}
+
+model Topic {
+  id             String                    @id @default(uuid())
+  organizationId String
+  name           String
+  slug           String
+  description    String?
+  isSystem       Boolean                   @default(false)
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+  organization   Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignments    FeedbackTopicAssignment[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, name])
+}
+
+model FeedbackTopicAssignment {
+  id         String               @id @default(uuid())
+  feedbackId String
+  topicId    String
+  confidence Float?
+  origin     TopicAssignmentOrigin @default(HUMAN)
+  createdAt  DateTime             @default(now())
+  feedback   Feedback             @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  topic      Topic                @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([feedbackId, topicId])
+  @@index([topicId, createdAt])
+}
+
+model FeedbackNote {
+  id             String       @id @default(uuid())
+  organizationId String
+  feedbackId     String
+  userId         String
+  body           String       @db.Text
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  feedback       Feedback     @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, feedbackId, createdAt])
 }
