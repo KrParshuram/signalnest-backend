@@ -11,6 +11,7 @@ import { errorHandler, notFound } from "./middleware/errors.js";
 import authRoutes from "./routes/auth.js";
 import organizationRoutes from "./routes/organizations.js";
 import brandRoutes from "./routes/brands.js";
+import feedbackRoutes from "./routes/feedback.js";
 
 export const app = express();
 
@@ -51,6 +52,7 @@ app.use("/api/v1", rateLimit({
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/organizations", organizationRoutes);
 app.use("/api/v1/brands", brandRoutes);
+app.use("/api/v1/feedback", feedbackRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
