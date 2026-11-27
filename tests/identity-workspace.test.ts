@@ -125,6 +125,29 @@ test("identity, workspace membership and brand isolation", async () => {
 
   await prisma.organizationMember.update({
     where: { organizationId_userId: { organizationId, userId: firstUserId } },
+    data: { role: "MEMBER" },
+  });
+  const memberInboxBeforeAssignment = await firstAgent.get(`/api/v1/feedback?organizationId=${organizationId}`)
+    .set("Authorization", `Bearer ${accessToken}`);
+  assert.equal(memberInboxBeforeAssignment.body.data.length, 0);
+  const hiddenUnassignedFeedback = await firstAgent.get(`/api/v1/feedback/${feedbackId}`)
+    .set("Authorization", `Bearer ${accessToken}`);
+  assert.equal(hiddenUnassignedFeedback.status, 404);
+  await prisma.feedback.update({ where: { id: feedbackId }, data: { assignedToUserId: firstUserId } });
+  const memberInbox = await firstAgent.get(`/api/v1/feedback?organizationId=${organizationId}`)
+    .set("Authorization", `Bearer ${accessToken}`);
+  assert.equal(memberInbox.body.data.length, 1);
+  const memberNote = await firstAgent.post(`/api/v1/feedback/${feedbackId}/notes`)
+    .set("Authorization", `Bearer ${accessToken}`)
+    .send({ body: "Member note on assigned feedback." });
+  assert.equal(memberNote.status, 201);
+  const memberReassign = await firstAgent.patch(`/api/v1/feedback/${feedbackId}`)
+    .set("Authorization", `Bearer ${accessToken}`)
+    .send({ assignedToUserId: null });
+  assert.equal(memberReassign.status, 403);
+
+  await prisma.organizationMember.update({
+    where: { organizationId_userId: { organizationId, userId: firstUserId } },
     data: { role: "VIEWER" },
   });
   const viewerCreate = await firstAgent.post("/api/v1/brands")
