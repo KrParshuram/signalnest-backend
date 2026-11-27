@@ -45,6 +45,7 @@ const createSchema = z.object({
   authorDisplayName: z.string().trim().max(160).optional(),
   publishedAt: z.string().datetime().optional(),
   assignedToUserId: z.string().uuid().nullable().optional(),
+  topicIds: z.array(z.string().uuid()).max(20).optional(),
 }).strict();
 
 const updateSchema = z.object({
@@ -64,6 +65,8 @@ router.get("/", async (req, res) => {
     topicId: z.string().uuid().optional(),
     sentiment: z.enum(["POSITIVE", "NEGATIVE", "NEUTRAL", "UNKNOWN"]).optional(),
     status: z.enum(["ACTIVE", "ARCHIVED"]).default("ACTIVE"),
+    fromDate: z.string().datetime().optional(),
+    toDate: z.string().datetime().optional(),
     search: z.string().trim().max(200).optional(),
     cursor: z.string().uuid().optional(),
     limit: z.coerce.number().int().min(1).max(100).default(25),
@@ -79,6 +82,7 @@ router.get("/", async (req, res) => {
     ...(query.brandId ? { brandId: query.brandId } : {}),
     ...(query.sourceId ? { sourceId: query.sourceId } : {}),
     ...(query.sentiment ? { sentiment: query.sentiment } : {}),
+    ...(query.fromDate || query.toDate ? { createdAt: { ...(query.fromDate ? { gte: new Date(query.fromDate) } : {}), ...(query.toDate ? { lte: new Date(query.toDate) } : {}) } } : {}),
     ...(query.topicId ? { topicAssignments: { some: { topicId: query.topicId } } } : {}),
     ...(query.search ? {
       OR: [
@@ -122,6 +126,14 @@ router.post("/", async (req, res) => {
   });
   if (!brand) throw new HttpError(404, "BRAND_NOT_FOUND", "Brand not found.");
 
+  if (input.topicIds && new Set(input.topicIds).size !== input.topicIds.length) {
+    throw new HttpError(400, "DUPLICATE_TOPICS", "A topic can only be assigned once.");
+  }
+  if (input.topicIds?.length) {
+    const topics = await prisma.topic.count({ where: { id: { in: input.topicIds }, organizationId: input.organizationId } });
+    if (topics !== input.topicIds.length) throw new HttpError(400, "INVALID_TOPICS", "One or more topics do not belong to this organization.");
+  }
+
   if (input.assignedToUserId) {
     const assignee = await getMembership(input.assignedToUserId, input.organizationId);
     if (!assignee) throw new HttpError(400, "INVALID_ASSIGNEE", "The assigned user is not an active member of this organization.");
@@ -161,6 +173,7 @@ router.post("/", async (req, res) => {
       sourceUrl: input.sourceUrl,
       authorDisplayName: input.authorDisplayName,
       publishedAt: input.publishedAt ? new Date(input.publishedAt) : null,
+      ...(input.topicIds?.length ? { topicAssignments: { create: input.topicIds.map((topicId) => ({ topicId, origin: "HUMAN" as const })) } } : {}),
     },
     include: feedbackInclude,
   });
@@ -230,6 +243,16 @@ router.post("/:feedbackId/restore", async (req, res) => {
     select: { id: true, status: true, archivedAt: true },
   });
   return res.json(updated);
+});
+
+
+router.delete("/:feedbackId", async (req, res) => {
+  const { feedback, membership } = await getFeedbackAccess(req.userId!, req.params.feedbackId);
+  if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
+    throw new HttpError(403, "FORBIDDEN", "Only organization owners and admins can permanently delete feedback.");
+  }
+  await prisma.feedback.delete({ where: { id: feedback.id } });
+  return res.status(204).send();
 });
 
 router.get("/:feedbackId/notes", async (req, res) => {
