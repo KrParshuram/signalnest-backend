@@ -54,6 +54,19 @@ enum TopicAssignmentOrigin {
   HUMAN
 }
 
+enum ImportJobType {
+  CSV
+  URL
+}
+
+enum ImportJobStatus {
+  PREVIEWED
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
 model User {
   id               String               @id @default(uuid())
   name             String
@@ -66,6 +79,7 @@ model User {
   createdFeedback  Feedback[]           @relation("FeedbackCreator")
   assignedFeedback Feedback[]           @relation("FeedbackAssignee")
   feedbackNotes    FeedbackNote[]
+  importJobs       FeedbackImportJob[]
 }
 
 model RefreshToken {
@@ -95,6 +109,7 @@ model Organization {
   feedback        Feedback[]
   topics          Topic[]
   feedbackNotes   FeedbackNote[]
+  importJobs      FeedbackImportJob[]
 
   @@index([createdAt])
 }
@@ -125,6 +140,7 @@ model Brand {
   updatedAt      DateTime     @updatedAt
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   feedback       Feedback[]
+  importJobs     FeedbackImportJob[]
 
   @@index([organizationId, createdAt])
 }
@@ -154,6 +170,8 @@ model Feedback {
   assignedToUserId   String?
   duplicateOfId      String?
   externalId         String?
+  contentHash        String
+  importJobId        String?
   originalContent    String             @db.Text
   authorDisplayName  String?
   sourceUrl          String?
@@ -175,6 +193,7 @@ model Feedback {
   duplicates         Feedback[]         @relation("FeedbackDuplicates")
   topicAssignments   FeedbackTopicAssignment[]
   notes              FeedbackNote[]
+  importJob          FeedbackImportJob? @relation(fields: [importJobId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, sourceId, externalId])
   @@index([organizationId, brandId, createdAt])
@@ -183,6 +202,8 @@ model Feedback {
   @@index([organizationId, sourceId, createdAt])
   @@index([organizationId, publishedAt])
   @@index([assignedToUserId, status])
+  @@index([organizationId, contentHash])
+  @@index([importJobId])
 }
 
 model Topic {
@@ -228,4 +249,31 @@ model FeedbackNote {
   user           User         @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([organizationId, feedbackId, createdAt])
+}
+
+model FeedbackImportJob {
+  id              String          @id @default(uuid())
+  organizationId  String
+  brandId         String
+  createdByUserId String
+  type            ImportJobType
+  status          ImportJobStatus @default(PREVIEWED)
+  fileName        String?
+  totalRows       Int             @default(0)
+  validRows       Int             @default(0)
+  invalidRows     Int             @default(0)
+  processedRows   Int             @default(0)
+  previewData     Json
+  errors          Json?
+  failureReason   String?         @db.Text
+  completedAt     DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  brand           Brand           @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  createdBy       User            @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  feedback        Feedback[]
+
+  @@index([organizationId, status, createdAt])
+  @@index([brandId, createdAt])
 }
