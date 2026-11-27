@@ -199,7 +199,7 @@ router.post("/import/:jobId/confirm", async (req, res) => {
 
   try {
     const queue = getFeedbackImportQueue();
-    await queue.add("process-csv-import", { importJobId: importJob.id }, {
+    await queue.add("process-feedback-import", { importJobId: importJob.id }, {
       jobId: importJob.id,
       attempts: 3,
       backoff: { type: "exponential", delay: 3000 },
