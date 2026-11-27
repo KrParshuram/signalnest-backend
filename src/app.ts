@@ -13,6 +13,7 @@ import organizationRoutes from "./routes/organizations.js";
 import brandRoutes from "./routes/brands.js";
 import feedbackRoutes from "./routes/feedback.js";
 import topicRoutes from "./routes/topics.js";
+import sourceRoutes from "./routes/sources.js";
 
 export const app = express();
 
@@ -55,6 +56,7 @@ app.use("/api/v1/organizations", organizationRoutes);
 app.use("/api/v1/brands", brandRoutes);
 app.use("/api/v1/feedback", feedbackRoutes);
 app.use("/api/v1/topics", topicRoutes);
+app.use("/api/v1/sources", sourceRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
