@@ -96,7 +96,7 @@ test("identity, workspace membership and brand isolation", async () => {
     .set("Authorization", `Bearer ${accessToken}`)
     .field("organizationId", organizationId)
     .field("brandId", brandId)
-    .attach("file", Buffer.from("content,author\\n\\\"CSV imported feedback\\\",\\\"CSV Customer\\\"\\n,Missing content\\n"), { filename: "feedback.csv", contentType: "text/csv" });
+    .attach("file", Buffer.from("content,author\n\"CSV imported feedback\",\"CSV Customer\"\n,Missing content\n"), { filename: "feedback.csv", contentType: "text/csv" });
   assert.equal(csvPreview.status, 201);
   assert.equal(csvPreview.body.validRows, 1);
   assert.equal(csvPreview.body.invalidRows, 1);
