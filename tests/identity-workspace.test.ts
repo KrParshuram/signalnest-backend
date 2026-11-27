@@ -9,10 +9,11 @@ process.env.JWT_ACCESS_SECRET ??= "test-access-secret-that-is-at-least-thirty-tw
 process.env.JWT_REFRESH_SECRET ??= "test-refresh-secret-that-is-at-least-thirty-two-characters";
 process.env.WEB_ORIGIN ??= "http://localhost:3000";
 
-const [{ app }, { prisma }, { default: request }] = await Promise.all([
+const [{ app }, { prisma }, { default: request }, { processFeedbackImport }] = await Promise.all([
   import("../src/app.js"),
   import("../src/lib/prisma.js"),
   import("supertest"),
+  import("../src/services/feedback-import.service.js"),
 ]);
 
 const runId = randomUUID();
