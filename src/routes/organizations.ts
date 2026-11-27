@@ -12,6 +12,12 @@ const createSchema = z.object({
   name: z.string().trim().min(2).max(100),
   defaultCurrency: z.string().length(3).default("USD"),
   timezone: z.string().trim().min(1).max(80).default("UTC"),
+  initialBrand: z.object({
+    name: z.string().trim().min(2).max(100),
+    websiteUrl: z.string().url().optional(),
+    industry: z.string().trim().max(80).optional(),
+    description: z.string().trim().max(500).optional(),
+  }).strict().optional(),
 }).strict();
 
 function slugify(value: string) {
@@ -41,7 +47,18 @@ router.post("/", async (req, res) => {
       defaultCurrency: input.defaultCurrency.toUpperCase(),
       timezone: input.timezone,
       members: { create: { userId: req.userId!, role: "OWNER", status: "ACTIVE" } },
+      ...(input.initialBrand ? {
+        brands: {
+          create: {
+            name: input.initialBrand.name,
+            websiteUrl: input.initialBrand.websiteUrl,
+            industry: input.initialBrand.industry,
+            description: input.initialBrand.description,
+          },
+        },
+      } : {}),
     },
+    include: { brands: true },
   });
   return res.status(201).json(organization);
 });
