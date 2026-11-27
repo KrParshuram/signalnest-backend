@@ -43,7 +43,7 @@ The access token authenticates API requests. The refresh token is held in an Htt
 - `DELETE /feedback/:feedbackId`
 - `POST /feedback/import/csv` (multipart upload; returns validated preview)
 - `POST /feedback/import/:jobId/confirm` (queues the reviewed import)
-- `POST /feedback/import/url`
+- `POST /feedback/import/url` (manual capture: URL plus user-provided feedback text; HTTP/HTTPS only, no automatic scraping)
 - `GET /feedback/import/:jobId` (preview and processing status)
 
 List queries will support organization, brand, source, date range, sentiment, topic and text filters, with cursor pagination.
@@ -87,3 +87,7 @@ Cursor-based list responses use `{ "data": [], "page": { "nextCursor": null, "ha
 - Confirmation is explicit and idempotent; it enqueues a BullMQ job.
 - Worker processing is retryable and tracks row progress. A deterministic import-row key prevents duplicate creation after worker retries.
 - Exact-content matches are linked through `duplicateOfId`; original content remains unchanged.
+
+## Manual URL capture
+
+The URL capture endpoint accepts an organization, brand, HTTP/HTTPS source URL, and the feedback text supplied by the user. It creates a preview import job; the user must explicitly confirm before the worker stores the feedback. Signalnest does not fetch or scrape the submitted page in this workflow.
