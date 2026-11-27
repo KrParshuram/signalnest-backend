@@ -1,21 +1,21 @@
 # Backend task ledger
 
-Status: **Not started** means no implementation has been committed. A task is complete only after its acceptance checks pass.
+Status: **In progress**. A task is complete only after its acceptance checks pass.
 
 ## Phase 0 — Engineering foundation
 
-- [ ] BE-001 — Establish API bootstrap, configuration validation and health/readiness endpoints.
-- [ ] BE-002 — Establish Prisma schema, migrations and database constraints for identity/workspaces/brands.
-- [ ] BE-003 — Add centralized validation, error handling, request IDs and structured logging.
-- [ ] BE-004 — Add automated unit/integration test setup and CI.
-- [ ] BE-005 — Add Docker-based local PostgreSQL/Redis workflow and setup documentation.
+- [ ] BE-001 — API bootstrap, environment validation and health/readiness endpoints. **Implemented; CI validation pending.**
+- [ ] BE-002 — Prisma schema and reproducible database migrations for identity/workspaces/brands. **Initial schema committed; migration workflow pending.**
+- [ ] BE-003 — Centralized validation, error handling, request IDs and structured logging. **Initial implementation committed; tests pending.**
+- [ ] BE-004 — Automated unit/integration tests and CI. **CI workflow committed; first run in progress; tests pending.**
+- [ ] BE-005 — Docker-based local PostgreSQL/Redis workflow and setup documentation. **Committed; local verification pending.**
 
 ## Phase 1 — Identity and workspace
 
-- [ ] BE-101 — Registration, login, logout, refresh rotation and current-user endpoint.
-- [ ] BE-102 — Organization creation, listing and membership authorization.
-- [ ] BE-103 — Role-based permissions for OWNER, ADMIN, MANAGER, MEMBER and VIEWER.
-- [ ] BE-104 — Brand CRUD with organization isolation.
+- [ ] BE-101 — Registration, login, logout, refresh rotation and current-user endpoint. **Implemented; CI validation pending.**
+- [ ] BE-102 — Organization creation, listing and membership authorization. **Initial implementation committed; tests pending.**
+- [ ] BE-103 — Role-based permissions for OWNER, ADMIN, MANAGER, MEMBER and VIEWER. **Role model exists; complete policy enforcement pending.**
+- [ ] BE-104 — Brand CRUD with organization isolation. **List/create implemented; detail/update/delete and tests pending.**
 
 ## Phase 2 — Feedback capture
 
