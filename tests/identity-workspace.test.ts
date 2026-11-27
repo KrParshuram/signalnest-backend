@@ -101,6 +101,11 @@ test("identity, workspace membership and brand isolation", async () => {
   const urlJobStatus = await firstAgent.get("/api/v1/feedback/import/" + urlPreview.body.id)
     .set("Authorization", `Bearer ${accessToken}`);
   assert.equal(urlJobStatus.body.status, "PREVIEWED");
+  await prisma.feedbackImportJob.update({ where: { id: urlPreview.body.id }, data: { status: "QUEUED" } });
+  await processFeedbackImport(urlPreview.body.id);
+  const urlImportedFeedback = await prisma.feedback.findFirst({ where: { importJobId: urlPreview.body.id }, include: { source: true } });
+  assert.equal(urlImportedFeedback?.source.type, "URL");
+  assert.equal(urlImportedFeedback?.sourceUrl, "https://reviews.example.test/customer-123");
   const unsafeUrl = await firstAgent.post("/api/v1/feedback/import/url")
     .set("Authorization", `Bearer ${accessToken}`)
     .send({ organizationId, brandId, url: "ftp://reviews.example.test/file", originalContent: "Unsupported protocol" });
