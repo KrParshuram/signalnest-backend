@@ -20,6 +20,9 @@ async function getFeedbackAccess(userId: string, feedbackId: string) {
   if (!feedback) throw new HttpError(404, "FEEDBACK_NOT_FOUND", "Feedback not found.");
   const membership = await getMembership(userId, feedback.organizationId);
   if (!membership) throw new HttpError(404, "FEEDBACK_NOT_FOUND", "Feedback not found.");
+  if (membership.role === "MEMBER" && feedback.assignedToUserId !== userId) {
+    throw new HttpError(404, "FEEDBACK_NOT_FOUND", "Feedback not found.");
+  }
   return { feedback, membership };
 }
 
@@ -66,12 +69,12 @@ router.get("/", async (req, res) => {
     limit: z.coerce.number().int().min(1).max(100).default(25),
   }).strict().parse(req.query);
 
-  if (!(await getMembership(req.userId!, query.organizationId))) {
-    throw new HttpError(404, "ORGANIZATION_NOT_FOUND", "Organization not found.");
-  }
+  const membership = await getMembership(req.userId!, query.organizationId);
+  if (!membership) throw new HttpError(404, "ORGANIZATION_NOT_FOUND", "Organization not found.");
 
   const where = {
     organizationId: query.organizationId,
+    ...(membership.role === "MEMBER" ? { assignedToUserId: req.userId! } : {}),
     status: query.status,
     ...(query.brandId ? { brandId: query.brandId } : {}),
     ...(query.sourceId ? { sourceId: query.sourceId } : {}),
@@ -106,8 +109,11 @@ router.post("/", async (req, res) => {
   const input = createSchema.parse(req.body);
   const membership = await getMembership(req.userId!, input.organizationId);
   if (!membership) throw new HttpError(404, "ORGANIZATION_NOT_FOUND", "Organization not found.");
-  if (!permissions.manageFeedback(membership.role)) {
+  if (!permissions.createFeedback(membership.role)) {
     throw new HttpError(403, "FORBIDDEN", "You do not have permission to create feedback.");
+  }
+  if (membership.role === "MEMBER" && input.assignedToUserId && input.assignedToUserId !== req.userId) {
+    throw new HttpError(403, "FORBIDDEN", "Members can only create feedback assigned to themselves.");
   }
 
   const brand = await prisma.brand.findFirst({
@@ -150,7 +156,7 @@ router.post("/", async (req, res) => {
       brandId: input.brandId,
       sourceId,
       createdByUserId: req.userId!,
-      assignedToUserId: input.assignedToUserId ?? null,
+      assignedToUserId: membership.role === "MEMBER" ? req.userId! : input.assignedToUserId ?? null,
       originalContent: input.originalContent,
       sourceUrl: input.sourceUrl,
       authorDisplayName: input.authorDisplayName,
@@ -173,10 +179,14 @@ router.get("/:feedbackId", async (req, res) => {
 
 router.patch("/:feedbackId", async (req, res) => {
   const { feedback, membership } = await getFeedbackAccess(req.userId!, req.params.feedbackId);
-  if (!permissions.manageFeedback(membership.role)) {
+  if (!permissions.manageFeedback(membership.role, feedback.assignedToUserId, req.userId!)) {
     throw new HttpError(403, "FORBIDDEN", "You do not have permission to update feedback.");
   }
   const input = updateSchema.parse(req.body);
+
+  if (membership.role === "MEMBER" && input.assignedToUserId !== undefined) {
+    throw new HttpError(403, "FORBIDDEN", "Members cannot reassign feedback.");
+  }
 
   if (input.assignedToUserId) {
     const assignee = await getMembership(input.assignedToUserId, feedback.organizationId);
