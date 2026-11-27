@@ -73,7 +73,7 @@ router.post("/import/url", async (req, res) => {
     publishedAt: z.string().datetime().optional(),
   }).strict().parse(req.body);
   const parsedUrl = new URL(input.url);
-  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+  if ((parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") || parsedUrl.username || parsedUrl.password) {
     throw new HttpError(400, "INVALID_SOURCE_URL", "Only HTTP and HTTPS source URLs are supported.");
   }
   const membership = await getMembership(req.userId!, input.organizationId);
