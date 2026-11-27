@@ -24,6 +24,7 @@ let firstUserId = "";
 
 after(async () => {
   if (organizationId) {
+    await prisma.feedback.deleteMany({ where: { organizationId } });
     await prisma.organization.deleteMany({ where: { id: organizationId } });
   }
   await prisma.user.deleteMany({ where: { email: { in: [firstEmail, secondEmail] } } });
@@ -78,6 +79,39 @@ test("identity, workspace membership and brand isolation", async () => {
     .send({ organizationId, name: "Test Brand", websiteUrl: "https://example.test" });
   assert.equal(brand.status, 201);
   const brandId = brand.body.id;
+  const feedbackCreate = await firstAgent.post("/api/v1/feedback")
+    .set("Authorization", `Bearer ${accessToken}`)
+    .send({ organizationId, brandId, originalContent: "The product is easy to use and the support team was helpful.", authorDisplayName: "Customer A" });
+  assert.equal(feedbackCreate.status, 201);
+  const feedbackId = feedbackCreate.body.id;
+  assert.equal(feedbackCreate.body.source.type, "MANUAL");
+  assert.equal(feedbackCreate.body.sentiment, "UNKNOWN");
+
+  const feedbackList = await firstAgent.get(`/api/v1/feedback?organizationId=${organizationId}&search=easy`)
+    .set("Authorization", `Bearer ${accessToken}`);
+  assert.equal(feedbackList.status, 200);
+  assert.equal(feedbackList.body.data.length, 1);
+  assert.equal(feedbackList.body.data[0].id, feedbackId);
+
+  const immutableContent = await firstAgent.patch(`/api/v1/feedback/${feedbackId}`)
+    .set("Authorization", `Bearer ${accessToken}`)
+    .send({ originalContent: "Changed raw feedback" });
+  assert.equal(immutableContent.status, 400);
+
+  const feedbackNote = await firstAgent.post(`/api/v1/feedback/${feedbackId}/notes`)
+    .set("Authorization", `Bearer ${accessToken}`)
+    .send({ body: "Follow up with the support lead." });
+  assert.equal(feedbackNote.status, 201);
+
+  const archiveFeedback = await firstAgent.post(`/api/v1/feedback/${feedbackId}/archive`)
+    .set("Authorization", `Bearer ${accessToken}`);
+  assert.equal(archiveFeedback.status, 200);
+  const activeAfterArchive = await firstAgent.get(`/api/v1/feedback?organizationId=${organizationId}`)
+    .set("Authorization", `Bearer ${accessToken}`);
+  assert.equal(activeAfterArchive.body.data.length, 0);
+  const restoreFeedback = await firstAgent.post(`/api/v1/feedback/${feedbackId}/restore`)
+    .set("Authorization", `Bearer ${accessToken}`);
+  assert.equal(restoreFeedback.status, 200);
 
   const brandDetail = await firstAgent.get(`/api/v1/brands/${brandId}`)
     .set("Authorization", `Bearer ${accessToken}`);
@@ -113,6 +147,9 @@ test("identity, workspace membership and brand isolation", async () => {
   const forbiddenBrands = await secondAgent.get(`/api/v1/brands?organizationId=${organizationId}`)
     .set("Authorization", `Bearer ${secondRegistration.body.accessToken}`);
   assert.equal(forbiddenBrands.status, 404);
+  const forbiddenFeedback = await secondAgent.get(`/api/v1/feedback?organizationId=${organizationId}`)
+    .set("Authorization", `Bearer ${secondRegistration.body.accessToken}`);
+  assert.equal(forbiddenFeedback.status, 404);
 
   const deleteBrand = await firstAgent.delete(`/api/v1/brands/${brandId}`)
     .set("Authorization", `Bearer ${accessToken}`);
