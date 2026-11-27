@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { after, before, test } from "node:test";
+import { randomUUID } from "node:crypto";
+import { after, test } from "node:test";
 
 process.env.NODE_ENV = "test";
 process.env.DATABASE_URL ??= "postgresql://signalnest:signalnest_dev@localhost:5432/signalnest";
@@ -14,44 +15,53 @@ const [{ app }, { prisma }, { default: request }] = await Promise.all([
   import("supertest"),
 ]);
 
+const runId = randomUUID();
+const firstEmail = `tester+${runId}@signalnest.test`;
+const secondEmail = `other+${runId}@signalnest.test`;
 const firstAgent = request.agent(app);
-let accessToken = "";
 let organizationId = "";
 
-before(async () => {
-  await prisma.refreshToken.deleteMany();
-  await prisma.brand.deleteMany();
-  await prisma.organizationMember.deleteMany();
-  await prisma.organization.deleteMany();
-  await prisma.user.deleteMany();
-});
-
 after(async () => {
+  if (organizationId) {
+    await prisma.organization.deleteMany({ where: { id: organizationId } });
+  }
+  await prisma.user.deleteMany({ where: { email: { in: [firstEmail, secondEmail] } } });
   await prisma.$disconnect();
 });
 
 test("identity, workspace membership and brand isolation", async () => {
+  const unauthenticated = await firstAgent.get("/api/v1/auth/me");
+  assert.equal(unauthenticated.status, 401);
+
   const registration = await firstAgent.post("/api/v1/auth/register").send({
     name: "Signalnest Tester",
-    email: "tester@signalnest.test",
+    email: firstEmail,
     password: "A-secure-test-password-2026",
   });
   assert.equal(registration.status, 201);
   assert.ok(registration.body.accessToken);
-  accessToken = registration.body.accessToken;
+  const accessToken = registration.body.accessToken;
   const originalRefreshCookie = registration.headers["set-cookie"]?.[0]?.split(";")[0];
   assert.ok(originalRefreshCookie);
 
   const duplicate = await firstAgent.post("/api/v1/auth/register").send({
     name: "Duplicate Tester",
-    email: "TESTER@signalnest.test",
+    email: firstEmail.toUpperCase(),
     password: "A-secure-test-password-2026",
   });
   assert.equal(duplicate.status, 409);
 
+  const loginAgent = request.agent(app);
+  const login = await loginAgent.post("/api/v1/auth/login").send({
+    email: firstEmail,
+    password: "A-secure-test-password-2026",
+  });
+  assert.equal(login.status, 200);
+  assert.ok(login.body.accessToken);
+
   const me = await firstAgent.get("/api/v1/auth/me").set("Authorization", `Bearer ${accessToken}`);
   assert.equal(me.status, 200);
-  assert.equal(me.body.user.email, "tester@signalnest.test");
+  assert.equal(me.body.user.email, firstEmail);
 
   const organization = await firstAgent.post("/api/v1/organizations")
     .set("Authorization", `Bearer ${accessToken}`)
@@ -67,7 +77,7 @@ test("identity, workspace membership and brand isolation", async () => {
   const secondAgent = request.agent(app);
   const secondRegistration = await secondAgent.post("/api/v1/auth/register").send({
     name: "Other User",
-    email: "other@signalnest.test",
+    email: secondEmail,
     password: "Another-secure-password-2026",
   });
   assert.equal(secondRegistration.status, 201);
@@ -79,7 +89,6 @@ test("identity, workspace membership and brand isolation", async () => {
   const refreshed = await firstAgent.post("/api/v1/auth/refresh");
   assert.equal(refreshed.status, 200);
   assert.ok(refreshed.body.accessToken);
-  accessToken = refreshed.body.accessToken;
 
   const replayedOldSession = await request(app).post("/api/v1/auth/refresh")
     .set("Cookie", originalRefreshCookie);
