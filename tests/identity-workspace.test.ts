@@ -20,6 +20,7 @@ const firstEmail = `tester+${runId}@signalnest.test`;
 const secondEmail = `other+${runId}@signalnest.test`;
 const firstAgent = request.agent(app);
 let organizationId = "";
+let firstUserId = "";
 
 after(async () => {
   if (organizationId) {
@@ -40,6 +41,7 @@ test("identity, workspace membership and brand isolation", async () => {
   });
   assert.equal(registration.status, 201);
   assert.ok(registration.body.accessToken);
+  firstUserId = registration.body.user.id;
   const accessToken = registration.body.accessToken;
   const originalRefreshCookie = registration.headers["set-cookie"]?.[0]?.split(";")[0];
   assert.ok(originalRefreshCookie);
@@ -73,6 +75,30 @@ test("identity, workspace membership and brand isolation", async () => {
     .set("Authorization", `Bearer ${accessToken}`)
     .send({ organizationId, name: "Test Brand", websiteUrl: "https://example.test" });
   assert.equal(brand.status, 201);
+  const brandId = brand.body.id;
+
+  const brandDetail = await firstAgent.get(`/api/v1/brands/${brandId}`)
+    .set("Authorization", `Bearer ${accessToken}`);
+  assert.equal(brandDetail.status, 200);
+
+  const brandUpdate = await firstAgent.patch(`/api/v1/brands/${brandId}`)
+    .set("Authorization", `Bearer ${accessToken}`)
+    .send({ name: "Updated Test Brand" });
+  assert.equal(brandUpdate.status, 200);
+  assert.equal(brandUpdate.body.name, "Updated Test Brand");
+
+  await prisma.organizationMember.update({
+    where: { organizationId_userId: { organizationId, userId: firstUserId } },
+    data: { role: "VIEWER" },
+  });
+  const viewerCreate = await firstAgent.post("/api/v1/brands")
+    .set("Authorization", `Bearer ${accessToken}`)
+    .send({ organizationId, name: "Forbidden Brand" });
+  assert.equal(viewerCreate.status, 403);
+  await prisma.organizationMember.update({
+    where: { organizationId_userId: { organizationId, userId: firstUserId } },
+    data: { role: "OWNER" },
+  });
 
   const secondAgent = request.agent(app);
   const secondRegistration = await secondAgent.post("/api/v1/auth/register").send({
@@ -85,6 +111,13 @@ test("identity, workspace membership and brand isolation", async () => {
   const forbiddenBrands = await secondAgent.get(`/api/v1/brands?organizationId=${organizationId}`)
     .set("Authorization", `Bearer ${secondRegistration.body.accessToken}`);
   assert.equal(forbiddenBrands.status, 404);
+
+  const deleteBrand = await firstAgent.delete(`/api/v1/brands/${brandId}`)
+    .set("Authorization", `Bearer ${accessToken}`);
+  assert.equal(deleteBrand.status, 204);
+  const deletedBrand = await firstAgent.get(`/api/v1/brands/${brandId}`)
+    .set("Authorization", `Bearer ${accessToken}`);
+  assert.equal(deletedBrand.status, 404);
 
   const refreshed = await firstAgent.post("/api/v1/auth/refresh");
   assert.equal(refreshed.status, 200);
