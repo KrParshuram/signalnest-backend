@@ -105,9 +105,18 @@ test("identity, workspace membership and brand isolation", async () => {
     .set("Authorization", `Bearer ${accessToken}`);
   assert.equal(csvConfirmed.status, 202);
   assert.equal(csvConfirmed.body.status, "QUEUED");
-  const csvJobStatus = await firstAgent.get("/api/v1/feedback/import/" + csvPreview.body.id)
+  let csvJobStatus = await firstAgent.get("/api/v1/feedback/import/" + csvPreview.body.id)
     .set("Authorization", `Bearer ${accessToken}`);
-  assert.equal(csvJobStatus.body.status, "QUEUED");
+  for (let attempt = 0; attempt < 50 && csvJobStatus.body.status !== "COMPLETED" && csvJobStatus.body.status !== "FAILED"; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    csvJobStatus = await firstAgent.get("/api/v1/feedback/import/" + csvPreview.body.id)
+      .set("Authorization", `Bearer ${accessToken}`);
+  }
+  assert.equal(csvJobStatus.body.status, "COMPLETED");
+  assert.equal(csvJobStatus.body.processedRows, 1);
+  const importedRows = await prisma.feedback.findMany({ where: { importJobId: csvPreview.body.id } });
+  assert.equal(importedRows.length, 1);
+  assert.equal(importedRows[0].originalContent, "CSV imported feedback");
   const feedbackCreate = await firstAgent.post("/api/v1/feedback")
     .set("Authorization", `Bearer ${accessToken}`)
     .send({ organizationId, brandId, originalContent: "The product is easy to use and the support team was helpful.", authorDisplayName: "Customer A", topicIds: [customTopic.body.id] });
