@@ -18,6 +18,18 @@ export function notFound(req: Request, res: Response) {
 export const errorHandler: ErrorRequestHandler = (error: unknown, req, res, _next) => {
   if (res.headersSent) return;
 
+  if (error instanceof Error && error.name === "MulterError") {
+    const code = "code" in error ? String(error.code) : "";
+    const status = code === "LIMIT_FILE_SIZE" ? 413 : 400;
+    return res.status(status).json({
+      error: {
+        code: code === "LIMIT_FILE_SIZE" ? "UPLOAD_TOO_LARGE" : "INVALID_UPLOAD",
+        message: code === "LIMIT_FILE_SIZE" ? "The uploaded file exceeds the 5 MB limit." : "The uploaded file could not be processed.",
+        requestId: req.requestId,
+      },
+    });
+  }
+
   if (error instanceof ZodError) {
     return res.status(400).json({
       error: {
