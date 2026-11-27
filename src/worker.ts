@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { Worker } from "bullmq";
-import IORedis from "ioredis";
+import { Redis } from "ioredis";
 import { createHash } from "node:crypto";
 import { env } from "./config/env.js";
 import { prisma } from "./lib/prisma.js";
@@ -14,7 +14,7 @@ type CsvPreviewRow = {
   externalId?: string | null;
 };
 
-const connection = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
+const connection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 
 const worker = new Worker<{ importJobId: string }>("feedback-imports", async (job) => {
   const importJob = await prisma.feedbackImportJob.findUnique({ where: { id: job.data.importJobId } });
