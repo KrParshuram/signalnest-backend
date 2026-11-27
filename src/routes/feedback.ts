@@ -1,11 +1,17 @@
 import { Router } from "express";
+import multer from "multer";
+import { parse } from "csv-parse/sync";
+import { createHash } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { permissions } from "../lib/permissions.js";
 import { requireAuth } from "../middleware/auth.js";
 import { HttpError } from "../middleware/errors.js";
+import { getFeedbackImportQueue } from "../queues/feedback-import.queue.js";
 
 const router = Router();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1 } });
 router.use(requireAuth);
 
 async function getMembership(userId: string, organizationId: string) {
@@ -57,6 +63,126 @@ const updateSchema = z.object({
   message: "At least one editable field must be provided.",
 });
 
+router.post("/import/csv", upload.single("file"), async (req, res) => {
+  const input = z.object({ organizationId: z.string().uuid(), brandId: z.string().uuid() }).strict().parse(req.body);
+  const membership = await getMembership(req.userId!, input.organizationId);
+  if (!membership) throw new HttpError(404, "ORGANIZATION_NOT_FOUND", "Organization not found.");
+  if (!permissions.manageInsights(membership.role)) throw new HttpError(403, "FORBIDDEN", "Only owners, admins and managers can import feedback.");
+  if (!req.file) throw new HttpError(400, "CSV_FILE_REQUIRED", "Choose a CSV file to upload.");
+  const brand = await prisma.brand.findFirst({ where: { id: input.brandId, organizationId: input.organizationId }, select: { id: true } });
+  if (!brand) throw new HttpError(404, "BRAND_NOT_FOUND", "Brand not found.");
+
+  let records: Record<string, string>[];
+  try {
+    records = parse(req.file.buffer, { columns: true, skip_empty_lines: true, bom: true, trim: true, max_record_size: 20_000 }) as Record<string, string>[];
+  } catch {
+    throw new HttpError(400, "INVALID_CSV", "The CSV file could not be parsed. Check its headers, quotes and row structure.");
+  }
+  if (records.length === 0) throw new HttpError(400, "CSV_EMPTY", "The CSV file does not contain any data rows.");
+  if (records.length > 1000) throw new HttpError(413, "CSV_ROW_LIMIT", "A single import can contain at most 1,000 data rows.");
+
+  const validRows: { originalContent: string; authorDisplayName?: string; sourceUrl?: string; publishedAt?: string; externalId?: string }[] = [];
+  const errors: { rowNumber: number; reason: string }[] = [];
+  const externalIds = new Set<string>();
+  records.forEach((record, index) => {
+    const row = Object.fromEntries(Object.entries(record).map(([key, value]) => [key.trim().toLowerCase().replace(/[\\s-]+/g, "_"), String(value ?? "").trim()]));
+    const originalContent = row.original_content || row.content || row.feedback || row.review || row.message || "";
+    if (!originalContent) { errors.push({ rowNumber: index + 2, reason: "Missing feedback content. Use a content, feedback, review or message column." }); return; }
+    if (originalContent.length > 20_000) { errors.push({ rowNumber: index + 2, reason: "Feedback content exceeds 20,000 characters." }); return; }
+
+    const sourceUrl = row.source_url || row.url || row.link || "";
+    if (sourceUrl) {
+      try {
+        const parsedUrl = new URL(sourceUrl);
+        if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") throw new Error("Invalid protocol");
+      } catch { errors.push({ rowNumber: index + 2, reason: "Source URL must be a valid HTTP or HTTPS URL." }); return; }
+    }
+
+    const publishedAtRaw = row.published_at || row.date || row.created_at || "";
+    let publishedAt: string | undefined;
+    if (publishedAtRaw) {
+      const date = new Date(publishedAtRaw);
+      if (Number.isNaN(date.getTime())) { errors.push({ rowNumber: index + 2, reason: "Publication date is invalid." }); return; }
+      publishedAt = date.toISOString();
+    }
+
+    const externalId = row.external_id || row.review_id || "";
+    if (externalId && externalIds.has(externalId)) { errors.push({ rowNumber: index + 2, reason: "Duplicate external ID in this file." }); return; }
+    if (externalId) externalIds.add(externalId);
+
+    validRows.push({
+      originalContent,
+      ...(row.author || row.author_name || row.display_name ? { authorDisplayName: row.author || row.author_name || row.display_name } : {}),
+      ...(sourceUrl ? { sourceUrl } : {}),
+      ...(publishedAt ? { publishedAt } : {}),
+      ...(externalId ? { externalId } : {}),
+    });
+  });
+
+  if (validRows.length === 0) throw new HttpError(400, "CSV_NO_VALID_ROWS", "No valid feedback rows were found. Review the CSV errors and try again.", errors);
+  const importJob = await prisma.feedbackImportJob.create({
+    data: {
+      organizationId: input.organizationId,
+      brandId: input.brandId,
+      createdByUserId: req.userId!,
+      type: "CSV",
+      status: "PREVIEWED",
+      fileName: req.file.originalname.slice(0, 255),
+      totalRows: records.length,
+      validRows: validRows.length,
+      invalidRows: errors.length,
+      previewData: validRows as unknown as Prisma.InputJsonValue,
+      errors: errors as unknown as Prisma.InputJsonValue,
+    },
+    select: { id: true, status: true, fileName: true, totalRows: true, validRows: true, invalidRows: true, errors: true, createdAt: true },
+  });
+  return res.status(201).json({ ...importJob, preview: validRows.slice(0, 20) });
+});
+
+router.post("/import/:jobId/confirm", async (req, res) => {
+  const importJob = await prisma.feedbackImportJob.findUnique({ where: { id: req.params.jobId } });
+  if (!importJob) throw new HttpError(404, "IMPORT_NOT_FOUND", "Import job not found.");
+  const membership = await getMembership(req.userId!, importJob.organizationId);
+  if (!membership) throw new HttpError(404, "IMPORT_NOT_FOUND", "Import job not found.");
+  if (!permissions.manageInsights(membership.role)) throw new HttpError(403, "FORBIDDEN", "Only owners, admins and managers can confirm imports.");
+  if (importJob.status !== "PREVIEWED") throw new HttpError(409, "IMPORT_NOT_PREVIEWED", "This import is no longer awaiting confirmation.");
+
+  const updated = await prisma.feedbackImportJob.updateMany({
+    where: { id: importJob.id, status: "PREVIEWED" },
+    data: { status: "QUEUED" },
+  });
+  if (updated.count !== 1) throw new HttpError(409, "IMPORT_ALREADY_CONFIRMED", "This import has already been confirmed.");
+
+  try {
+    const queue = getFeedbackImportQueue();
+    await queue.add("process-csv-import", { importJobId: importJob.id }, {
+      jobId: importJob.id,
+      attempts: 3,
+      backoff: { type: "exponential", delay: 3000 },
+      removeOnComplete: 100,
+      removeOnFail: 1000,
+    });
+  } catch {
+    await prisma.feedbackImportJob.update({ where: { id: importJob.id }, data: { status: "FAILED", failureReason: "Unable to queue import. Please retry or contact support." } });
+    throw new HttpError(503, "IMPORT_QUEUE_UNAVAILABLE", "Import processing is temporarily unavailable. Please try again.");
+  }
+
+  return res.status(202).json({ id: importJob.id, status: "QUEUED", validRows: importJob.validRows });
+});
+
+router.get("/import/:jobId", async (req, res) => {
+  const importJob = await prisma.feedbackImportJob.findUnique({ where: { id: req.params.jobId } });
+  if (!importJob) throw new HttpError(404, "IMPORT_NOT_FOUND", "Import job not found.");
+  const membership = await getMembership(req.userId!, importJob.organizationId);
+  if (!membership) throw new HttpError(404, "IMPORT_NOT_FOUND", "Import job not found.");
+  return res.json({
+    id: importJob.id, type: importJob.type, status: importJob.status, fileName: importJob.fileName,
+    totalRows: importJob.totalRows, validRows: importJob.validRows, invalidRows: importJob.invalidRows,
+    processedRows: importJob.processedRows, errors: importJob.errors, failureReason: importJob.failureReason,
+    createdAt: importJob.createdAt, completedAt: importJob.completedAt,
+    ...(importJob.status === "PREVIEWED" ? { preview: importJob.previewData } : {}),
+  });
+});
 router.get("/", async (req, res) => {
   const query = z.object({
     organizationId: z.string().uuid(),
@@ -162,6 +288,9 @@ router.post("/", async (req, res) => {
     sourceId = source.id;
   }
 
+  const contentHash = createHash("sha256").update(input.originalContent.normalize("NFKC").toLowerCase().replace(/\\s+/g, " ").trim()).digest("hex");
+  const duplicate = await prisma.feedback.findFirst({ where: { organizationId: input.organizationId, contentHash }, orderBy: { createdAt: "asc" }, select: { id: true } });
+
   const feedback = await prisma.feedback.create({
     data: {
       organizationId: input.organizationId,
@@ -170,6 +299,8 @@ router.post("/", async (req, res) => {
       createdByUserId: req.userId!,
       assignedToUserId: membership.role === "MEMBER" ? req.userId! : input.assignedToUserId ?? null,
       originalContent: input.originalContent,
+      contentHash,
+      duplicateOfId: duplicate?.id ?? null,
       sourceUrl: input.sourceUrl,
       authorDisplayName: input.authorDisplayName,
       publishedAt: input.publishedAt ? new Date(input.publishedAt) : null,
