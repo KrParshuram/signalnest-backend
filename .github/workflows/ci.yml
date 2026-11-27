@@ -51,9 +51,19 @@ jobs:
       - name: Typecheck and build
         run: npm run build
       - name: Start feedback import worker
-        run: npm run worker > /tmp/signalnest-worker.log 2>&1 & echo $! > /tmp/signalnest-worker.pid
+        run: |
+          node dist/worker.js > /tmp/signalnest-worker.log 2>&1 &
+          echo $! > /tmp/signalnest-worker.pid
+          sleep 2
+          if ! kill -0 "$(cat /tmp/signalnest-worker.pid)" 2>/dev/null; then
+            cat /tmp/signalnest-worker.log
+            exit 1
+          fi
       - name: Run integration tests
         run: npm test
+      - name: Print feedback worker logs on failure
+        if: failure()
+        run: cat /tmp/signalnest-worker.log || true
       - name: Stop feedback import worker
         if: always()
         run: if [ -f /tmp/signalnest-worker.pid ]; then kill "$(cat /tmp/signalnest-worker.pid)" || true; fi
