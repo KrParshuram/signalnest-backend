@@ -172,6 +172,7 @@ model Feedback {
   externalId         String?
   contentHash        String
   importJobId        String?
+  importRowNumber    Int?
   originalContent    String             @db.Text
   authorDisplayName  String?
   sourceUrl          String?
@@ -204,6 +205,7 @@ model Feedback {
   @@index([assignedToUserId, status])
   @@index([organizationId, contentHash])
   @@index([importJobId])
+  @@unique([importJobId, importRowNumber])
 }
 
 model Topic {
