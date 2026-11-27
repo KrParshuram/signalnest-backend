@@ -21,7 +21,7 @@ Status: **In progress**. A task is complete only after its acceptance checks pas
 
 - [x] BE-201 — Feedback/source/topic persistence and immutable source content. **Schema and API implemented; source content cannot be changed through PATCH.**
 - [x] BE-202 — Manual feedback create/read/update/archive/restore APIs, internal notes and permanent deletion policy. **Implemented; expanded integration suite running.**
-- [ ] BE-203 — CSV import validation, preview and asynchronous processing.
+- [ ] BE-203 — CSV import validation, preview and asynchronous processing. **Preview validation, explicit confirmation route, BullMQ producer and retry-safe worker are implemented; end-to-end worker runtime verification remains.**
 - [ ] BE-204 — URL capture with safe-fetch protections.
 - [ ] BE-205 — Search, filtering, cursor pagination and source-aware duplicate detection. **Search, brand/source/sentiment/topic/status filters and cursor pagination implemented; date range and duplicate detection remain.**
 
