@@ -8,6 +8,9 @@ import { prisma } from "./lib/prisma.js";
 import { logger } from "./lib/logger.js";
 import { requestId } from "./middleware/request-id.js";
 import { errorHandler, notFound } from "./middleware/errors.js";
+import authRoutes from "./routes/auth.js";
+import organizationRoutes from "./routes/organizations.js";
+import brandRoutes from "./routes/brands.js";
 
 export const app = express();
 
@@ -44,6 +47,10 @@ app.use("/api/v1", rateLimit({
   standardHeaders: "draft-8",
   legacyHeaders: false,
 }));
+
+app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/organizations", organizationRoutes);
+app.use("/api/v1/brands", brandRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
