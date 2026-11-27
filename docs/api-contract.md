@@ -1,6 +1,6 @@
 # API contract — initial boundary
 
-Base path: `/api/v1`. This document defines resource ownership and conventions; endpoint schemas are added with each implementation task.
+Base path: `/api/v1`. Resource ownership and conventions are defined here; detailed schemas evolve with each implementation task.
 
 ## Authentication
 
@@ -10,7 +10,7 @@ Base path: `/api/v1`. This document defines resource ownership and conventions; 
 - `POST /auth/logout`
 - `GET /auth/me`
 
-The access token authenticates API requests. The refresh token is held in an HttpOnly cookie and is never returned in JSON.
+Access tokens authenticate API requests. Refresh tokens are held in HttpOnly cookies and are never returned in JSON.
 
 ## Organizations and members
 
@@ -23,30 +23,34 @@ The access token authenticates API requests. The refresh token is held in an Htt
 - `PATCH /organizations/:organizationId/members/:memberId`
 - `DELETE /organizations/:organizationId/members/:memberId`
 
-## Brands
+## Brands and sources
 
 - `GET /brands?organizationId=...`
 - `POST /brands`
 - `GET /brands/:brandId`
 - `PATCH /brands/:brandId`
 - `DELETE /brands/:brandId`
+- `GET /sources?organizationId=...`
 
 ## Feedback and imports
 
-- `GET /feedback`
+- `GET /feedback` — supports organization, brand, source, date range, sentiment, topic, status, text search, sorting and cursor pagination
 - `POST /feedback`
 - `GET /feedback/:feedbackId`
-- `PATCH /feedback/:feedbackId` (source metadata and assignment only; original content is immutable)
+- `PATCH /feedback/:feedbackId` — source metadata and assignment only; original content is immutable
+- `DELETE /feedback/:feedbackId` — permanent deletion is restricted to owners/admins
+- `POST /feedback/:feedbackId/archive`
+- `POST /feedback/:feedbackId/restore`
 - `GET /feedback/:feedbackId/notes`
 - `POST /feedback/:feedbackId/notes`
-- `POST /feedback/:feedbackId/restore`
-- `DELETE /feedback/:feedbackId`
-- `POST /feedback/import/csv` (multipart upload; returns validated preview)
-- `POST /feedback/import/:jobId/confirm` (queues the reviewed import)
-- `POST /feedback/import/url` (manual capture: URL plus user-provided feedback text; HTTP/HTTPS only, no automatic scraping)
-- `GET /feedback/import/:jobId` (preview and processing status)
-
-List queries will support organization, brand, source, date range, sentiment, topic and text filters, with cursor pagination.
+- `POST /feedback/import/csv` — multipart upload; returns validated preview
+- `POST /feedback/import/url` — manual URL capture; URL plus user-provided feedback text
+- `POST /feedback/import/:jobId/confirm` — queues the reviewed import
+- `GET /feedback/import/:jobId` — preview and processing status
+- `GET /topics?organizationId=...`
+- `POST /topics`
+- `PATCH /topics/:topicId`
+- `DELETE /topics/:topicId`
 
 ## Insights and social proof
 
@@ -63,12 +67,6 @@ List queries will support organization, brand, source, date range, sentiment, to
 
 The public widget endpoint must filter to approved, published testimonials and expose no private feedback metadata.
 
-## Error and pagination format
-
-Errors use `{ "error": { "code": "VALIDATION_ERROR", "message": "Human-readable message", "details": [] } }`.
-
-Cursor-based list responses use `{ "data": [], "page": { "nextCursor": null, "hasMore": false } }`. Exact schemas will be committed with their endpoint implementation.
-
 ## Feedback integrity rules
 
 - Original content is immutable after creation.
@@ -76,6 +74,7 @@ Cursor-based list responses use `{ "data": [], "page": { "nextCursor": null, "ha
 - List responses are cursor-paginated and organization-scoped.
 - Archive and restore are reversible status changes; they do not rewrite original feedback.
 - Internal notes are private organization data and are never exposed through public testimonial/widget endpoints.
+- Exact normalized-content hashes identify likely duplicates; duplicate records retain their original content and link to the first matching record.
 
 ## CSV import contract
 
@@ -86,8 +85,13 @@ Cursor-based list responses use `{ "data": [], "page": { "nextCursor": null, "ha
 - Preview validates rows and stores valid rows without creating feedback records.
 - Confirmation is explicit and idempotent; it enqueues a BullMQ job.
 - Worker processing is retryable and tracks row progress. A deterministic import-row key prevents duplicate creation after worker retries.
-- Exact-content matches are linked through `duplicateOfId`; original content remains unchanged.
 
 ## Manual URL capture
 
-The URL capture endpoint accepts an organization, brand, HTTP/HTTPS source URL, and the feedback text supplied by the user. It creates a preview import job; the user must explicitly confirm before the worker stores the feedback. Signalnest does not fetch or scrape the submitted page in this workflow.
+The URL capture endpoint accepts an organization, brand, HTTP/HTTPS source URL, and feedback text supplied by the user. It creates a preview import job; the user must explicitly confirm before the worker stores the feedback. Signalnest does not fetch or scrape the submitted page in this workflow.
+
+## Error and pagination format
+
+Errors use `{ "error": { "code": "VALIDATION_ERROR", "message": "Human-readable message", "details": [] } }`.
+
+Cursor-based list responses use `{ "data": [], "page": { "nextCursor": null, "hasMore": false } }`.
