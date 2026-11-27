@@ -122,6 +122,15 @@ test("identity, workspace membership and brand isolation", async () => {
   const csvJobStatus = await firstAgent.get("/api/v1/feedback/import/" + csvPreview.body.id)
     .set("Authorization", `Bearer ${accessToken}`);
   assert.equal(csvJobStatus.body.status, "PREVIEWED");
+  await prisma.feedbackImportJob.update({ where: { id: csvPreview.body.id }, data: { status: "QUEUED" } });
+  await processFeedbackImport(csvPreview.body.id);
+  const csvJobCompleted = await firstAgent.get("/api/v1/feedback/import/" + csvPreview.body.id)
+    .set("Authorization", `Bearer ${accessToken}`);
+  assert.equal(csvJobCompleted.body.status, "COMPLETED");
+  assert.equal(csvJobCompleted.body.processedRows, 1);
+  const csvImportedRows = await prisma.feedback.findMany({ where: { importJobId: csvPreview.body.id } });
+  assert.equal(csvImportedRows.length, 1);
+  assert.equal(csvImportedRows[0].originalContent, "CSV imported feedback");
   const feedbackCreate = await firstAgent.post("/api/v1/feedback")
     .set("Authorization", `Bearer ${accessToken}`)
     .send({ organizationId, brandId, originalContent: "The product is easy to use and the support team was helpful.", authorDisplayName: "Customer A", topicIds: [customTopic.body.id] });
