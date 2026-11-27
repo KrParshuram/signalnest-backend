@@ -3,18 +3,21 @@ import { Redis } from "ioredis";
 import { env } from "../config/env.js";
 
 let queueInstance: Queue | null = null;
+let queueConnection: Redis | null = null;
 
 export function getFeedbackImportQueue() {
   if (!queueInstance) {
-    const connection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
-    queueInstance = new Queue("feedback-imports", { connection });
+    queueConnection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
+    queueInstance = new Queue("feedback-imports", { connection: queueConnection });
   }
   return queueInstance;
 }
 
 export async function closeFeedbackImportQueue() {
-  if (queueInstance) {
-    await queueInstance.close();
-    queueInstance = null;
+  if (queueInstance) await queueInstance.close();
+  queueInstance = null;
+  if (queueConnection && queueConnection.status !== "end") {
+    await queueConnection.quit().catch(() => undefined);
   }
+  queueConnection = null;
 }
