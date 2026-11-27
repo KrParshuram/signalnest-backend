@@ -39,6 +39,6 @@ The API listens on `http://localhost:4000`. Liveness: `GET /health`. Database re
 
 ## Not implemented yet
 
-AI classification, evidence-backed insights, actions, testimonials, widgets and external integrations remain on the task ledger. CSV worker end-to-end runtime verification is still pending.
+AI classification, evidence-backed insights, actions, testimonials, widgets and external integrations remain on the task ledger. The CSV/URL processing service is integration-tested; live BullMQ queue transport verification remains pending.
 
 See [Architecture](docs/architecture.md), [API contract](docs/api-contract.md), and [Task ledger](docs/task-ledger.md).
