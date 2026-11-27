@@ -15,7 +15,7 @@ The access token authenticates API requests. The refresh token is held in an Htt
 ## Organizations and members
 
 - `GET /organizations`
-- `POST /organizations`
+- `POST /organizations` (optionally accepts `initialBrand` to create the first brand atomically)
 - `GET /organizations/:organizationId`
 - `PATCH /organizations/:organizationId`
 - `GET /organizations/:organizationId/members`
