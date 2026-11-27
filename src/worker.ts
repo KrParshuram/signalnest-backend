@@ -27,15 +27,17 @@ const worker = new Worker<{ importJobId: string }>("feedback-imports", async (jo
   });
 
   try {
+    const sourceType = importJob.type === "CSV" ? "CSV" : "URL";
+    const sourceName = importJob.type === "CSV" ? "CSV import" : "URL capture";
     const source = await prisma.source.upsert({
       where: {
         organizationId_type_name: {
           organizationId: importJob.organizationId,
-          type: "CSV",
-          name: "CSV import",
+          type: sourceType,
+          name: sourceName,
         },
       },
-      create: { organizationId: importJob.organizationId, type: "CSV", name: "CSV import" },
+      create: { organizationId: importJob.organizationId, type: sourceType, name: sourceName },
       update: { isActive: true },
       select: { id: true },
     });
