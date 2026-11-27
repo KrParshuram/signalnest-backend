@@ -41,9 +41,10 @@ The access token authenticates API requests. The refresh token is held in an Htt
 - `POST /feedback/:feedbackId/notes`
 - `POST /feedback/:feedbackId/restore`
 - `DELETE /feedback/:feedbackId`
-- `POST /feedback/import/csv`
+- `POST /feedback/import/csv` (multipart upload; returns validated preview)
+- `POST /feedback/import/:jobId/confirm` (queues the reviewed import)
 - `POST /feedback/import/url`
-- `GET /feedback/import/:jobId`
+- `GET /feedback/import/:jobId` (preview and processing status)
 
 List queries will support organization, brand, source, date range, sentiment, topic and text filters, with cursor pagination.
 
@@ -75,3 +76,14 @@ Cursor-based list responses use `{ "data": [], "page": { "nextCursor": null, "ha
 - List responses are cursor-paginated and organization-scoped.
 - Archive and restore are reversible status changes; they do not rewrite original feedback.
 - Internal notes are private organization data and are never exposed through public testimonial/widget endpoints.
+
+## CSV import contract
+
+- Multipart fields: `organizationId`, `brandId`, and `file`.
+- Upload limit: 5 MB and 1,000 data rows.
+- Required content header: `content`, `original_content`, `feedback`, `review` or `message`.
+- Optional headers: `author`, `author_name`, `display_name`, `source_url`, `url`, `link`, `published_at`, `date`, `created_at`, `external_id`, `review_id`.
+- Preview validates rows and stores valid rows without creating feedback records.
+- Confirmation is explicit and idempotent; it enqueues a BullMQ job.
+- Worker processing is retryable and tracks row progress. A deterministic import-row key prevents duplicate creation after worker retries.
+- Exact-content matches are linked through `duplicateOfId`; original content remains unchanged.
