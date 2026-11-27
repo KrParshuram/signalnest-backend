@@ -3,6 +3,7 @@ import { env } from "./config/env.js";
 import { app } from "./app.js";
 import { prisma } from "./lib/prisma.js";
 import { logger } from "./lib/logger.js";
+import { closeFeedbackImportQueue } from "./queues/feedback-import.queue.js";
 
 const server = app.listen(env.PORT, () => {
   logger.info("Signalnest API listening", { port: env.PORT, environment: env.NODE_ENV });
@@ -11,6 +12,7 @@ const server = app.listen(env.PORT, () => {
 async function shutdown(signal: string) {
   logger.info("Shutdown signal received", { signal });
   server.close(async () => {
+    await closeFeedbackImportQueue();
     await prisma.$disconnect();
     process.exit(0);
   });
