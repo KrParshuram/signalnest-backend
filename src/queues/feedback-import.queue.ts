@@ -1,12 +1,12 @@
 import { Queue } from "bullmq";
-import IORedis from "ioredis";
+import { Redis } from "ioredis";
 import { env } from "../config/env.js";
 
 let queueInstance: Queue | null = null;
 
 export function getFeedbackImportQueue() {
   if (!queueInstance) {
-    const connection = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
+    const connection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
     queueInstance = new Queue("feedback-imports", { connection });
   }
   return queueInstance;
