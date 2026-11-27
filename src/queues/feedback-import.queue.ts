@@ -14,10 +14,11 @@ export function getFeedbackImportQueue() {
 }
 
 export async function closeFeedbackImportQueue() {
-  if (queueInstance) await queueInstance.close();
+  const queue = queueInstance;
+  const connection = queueConnection;
   queueInstance = null;
-  if (queueConnection && queueConnection.status !== "end") {
-    await queueConnection.quit().catch(() => undefined);
-  }
   queueConnection = null;
+
+  if (connection && connection.status !== "end") connection.disconnect();
+  if (queue) await queue.close().catch(() => undefined);
 }
