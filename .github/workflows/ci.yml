@@ -50,5 +50,10 @@ jobs:
         run: npx prisma db push
       - name: Typecheck and build
         run: npm run build
+      - name: Start feedback import worker
+        run: npm run worker > /tmp/signalnest-worker.log 2>&1 & echo $! > /tmp/signalnest-worker.pid
       - name: Run integration tests
         run: npm test
+      - name: Stop feedback import worker
+        if: always()
+        run: if [ -f /tmp/signalnest-worker.pid ]; then kill "$(cat /tmp/signalnest-worker.pid)" || true; fi
