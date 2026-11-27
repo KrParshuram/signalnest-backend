@@ -8,6 +8,16 @@ import { HttpError } from "../middleware/errors.js";
 const router = Router();
 router.use(requireAuth);
 
+const DEFAULT_TOPICS = [
+  "Product quality", "Pricing", "Usability", "Customer support", "Delivery",
+  "Onboarding", "Performance", "Features", "Reliability", "User experience",
+  "General praise", "Other",
+];
+
+function topicSlug(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
 const createSchema = z.object({
   name: z.string().trim().min(2).max(100),
   defaultCurrency: z.string().length(3).default("USD"),
@@ -57,6 +67,9 @@ router.post("/", async (req, res) => {
           },
         },
       } : {}),
+      topics: {
+        create: DEFAULT_TOPICS.map((name) => ({ name, slug: topicSlug(name), isSystem: true })),
+      },
     },
     include: { brands: true },
   });
