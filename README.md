@@ -6,7 +6,7 @@ Backend application for Signalnest, the customer feedback intelligence and socia
 
 - Node.js 22 + TypeScript + Express 5
 - PostgreSQL + Prisma 6
-- Redis reserved for asynchronous workers
+- Redis + BullMQ for asynchronous imports
 - Zod request and environment validation
 
 ## Local development
@@ -19,7 +19,7 @@ Requirements: Node.js 22+, npm, Docker Desktop.
 4. Install dependencies: `npm install`.
 5. Generate Prisma client and sync the development database: `npx prisma db push`.
 6. Start the API: `npm run dev`.
-7. In a second terminal, start the background worker: `npm run worker` (after `npm run build`).
+7. In a second terminal, start the background worker: `npm run build` then `npm run worker`.
 
 The API listens on `http://localhost:4000`. Liveness: `GET /health`. Database readiness: `GET /ready`. Versioned endpoints use `/api/v1`.
 
@@ -30,15 +30,15 @@ The API listens on `http://localhost:4000`. Liveness: `GET /health`. Database re
 - Organization creation/listing and membership-scoped access.
 - Atomic initial organization + first brand + default topic creation.
 - Brand CRUD with organization isolation and role checks.
-- Organization-scoped topic CRUD and default feedback categories.
-- Manual feedback create/read/update/archive/restore, source attribution and immutable original content.
-- Search, brand/source/sentiment/topic/status filters and cursor pagination.
-- CSV upload preview, row-level validation, explicit confirmation, BullMQ processing, retry-safe row identity and duplicate linking.
-- Private feedback notes and organization-scoped access checks.
-- Member inbox restriction to assigned feedback; owner/admin-only permanent deletion.
+- Organization-scoped topic and source listing.
+- Manual feedback create/read/update/archive/restore, source attribution, immutable original content and private notes.
+- Search, brand/source/sentiment/topic/status/date filters, sorting and cursor pagination.
+- Content-hash duplicate linking and member inbox restriction to assigned feedback.
+- CSV upload preview, row-level validation, explicit confirmation and a retry-safe BullMQ worker.
+- Manual URL capture with HTTP/HTTPS validation and user-provided feedback text; no automatic scraping.
 
 ## Not implemented yet
 
-URL capture, AI classification, insights, actions, testimonials, widgets and external integrations remain on the task ledger.
+AI classification, evidence-backed insights, actions, testimonials, widgets and external integrations remain on the task ledger. CSV worker end-to-end runtime verification is still pending.
 
 See [Architecture](docs/architecture.md), [API contract](docs/api-contract.md), and [Task ledger](docs/task-ledger.md).
