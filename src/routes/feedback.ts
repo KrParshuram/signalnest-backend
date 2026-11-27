@@ -69,6 +69,7 @@ router.post("/import/csv", upload.single("file"), async (req, res) => {
   if (!membership) throw new HttpError(404, "ORGANIZATION_NOT_FOUND", "Organization not found.");
   if (!permissions.manageInsights(membership.role)) throw new HttpError(403, "FORBIDDEN", "Only owners, admins and managers can import feedback.");
   if (!req.file) throw new HttpError(400, "CSV_FILE_REQUIRED", "Choose a CSV file to upload.");
+  if (!req.file.originalname.toLowerCase().endsWith(".csv")) throw new HttpError(400, "INVALID_FILE_TYPE", "Only .csv files can be imported.");
   const brand = await prisma.brand.findFirst({ where: { id: input.brandId, organizationId: input.organizationId }, select: { id: true } });
   if (!brand) throw new HttpError(404, "BRAND_NOT_FOUND", "Brand not found.");
 
